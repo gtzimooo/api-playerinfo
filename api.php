@@ -1,72 +1,31 @@
 <?php
-header("Content-Type: application/json");
+header('Content-Type: application/json');
+header('Access-Control-Allow-Origin: *'); // Permite que o bot acesse
 
-// Verifica se enviou o nick
-if (!isset($_GET['nick']) || empty($_GET['nick'])) {
-    echo json_encode([
-        "status" => false,
-        "erro" => "Envie ?nick=NomeDoPlayer"
-    ]);
-    exit;
-}
+if (isset($_GET['nick'])) {
+    $nick = $_GET['nick'];
+    
+    // Aqui vai a sua lógica de busca (provavelmente usando a API do Rolimons ou Roblox)
+    // Exemplo de como o PHP deve responder:
+    $ch = curl_init("https://api.rolimons.com/players/v1/playersearch?searchstring=" . urlencode($nick));
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0');
+    $response = curl_exec($ch);
+    $data = json_decode($response, true);
 
-$nick = urlencode($_GET['nick']);
-
-// API de busca (Rolimons)
-$searchUrl = "https://api.rolimons.com/players/v1/playersearch?searchstring={$nick}";
-
-// Função para pegar dados com fallback de proxy
-function fetchData($url) {
-    $proxies = [
-        "https://corsproxy.io/?",
-        "https://api.allorigins.win/raw?url="
-    ];
-
-    foreach ($proxies as $proxy) {
-        $fullUrl = $proxy . urlencode($url);
-
-        $response = @file_get_contents($fullUrl);
-        if ($response !== false) {
-            return json_decode($response, true);
-        }
+    if ($data && $data['success'] && count($data['players']) > 0) {
+        $id = $data['players'][0][0];
+        $name = $data['players'][0][1];
+        
+        echo json_encode([
+            "status" => true,
+            "nick" => $name,
+            "id" => $id,
+            "avatar" => "https://tr.rbxcdn.com/30DAY-Avatar-Headshot-E93C3B9138096181F5B472856E243163-Png/150/150/AvatarHeadshot/Webp/noFilter",
+            "perfil" => "https://www.roblox.com/users/$id/profile"
+        ]);
+    } else {
+        echo json_encode(["status" => false, "message" => "Não encontrado"]);
     }
-
-    return null;
 }
-
-// Busca jogador
-$data = fetchData($searchUrl);
-
-if (!$data || !$data['success'] || empty($data['players'])) {
-    echo json_encode([
-        "status" => false,
-        "erro" => "Jogador não encontrado"
-    ]);
-    exit;
-}
-
-// Pega o primeiro resultado
-$player = $data['players'][0];
-$id = $player[0];
-$name = $player[1];
-
-// Avatar
-$avatarUrl = "https://thumbnails.rolimons.com/avatar?userIds={$id}&size=150x150";
-$avatarData = fetchData($avatarUrl);
-
-$avatar = null;
-
-if (isset($avatarData['thumbnails'][$id]['url'])) {
-    $avatar = $avatarData['thumbnails'][$id]['url'];
-} else {
-    $avatar = "https://tr.rbxcdn.com/default-avatar.png";
-}
-
-// Resposta final
-echo json_encode([
-    "status" => true,
-    "nick" => $name,
-    "id" => $id,
-    "avatar" => $avatar,
-    "perfil" => "https://www.roblox.com/users/{$id}/profile"
-], JSON_PRETTY_PRINT);
+?>
